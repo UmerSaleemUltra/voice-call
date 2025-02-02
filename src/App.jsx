@@ -18,11 +18,11 @@ const AgoraRoom = () => {
 
       if (mediaType === "video") {
         setRemoteUsers((prevUsers) => [...prevUsers, user]);
-        setTimeout(() => {
-          document.getElementById(`remote-video-${user.uid}`)?.appendChild(user.videoTrack.getMediaStreamTrack());
-        }, 1000);
+        playRemoteVideo(user);
       }
-      if (mediaType === "audio") user.audioTrack.play();
+      if (mediaType === "audio") {
+        user.audioTrack.play();
+      }
     });
 
     clientInstance.on("user-unpublished", (user) => {
@@ -48,9 +48,7 @@ const AgoraRoom = () => {
         setLocalVideoTrack(videoTrack);
         setJoined(true);
 
-        setTimeout(() => {
-          document.getElementById("local-video")?.appendChild(videoTrack.getMediaStreamTrack());
-        }, 500);
+        playLocalVideo(videoTrack);
       } catch (error) {
         console.error("Error joining room:", error);
       }
@@ -65,6 +63,33 @@ const AgoraRoom = () => {
       setJoined(false);
       setRemoteUsers([]);
     }
+  };
+
+  const playLocalVideo = (videoTrack) => {
+    const localVideoContainer = document.getElementById("local-video");
+    if (localVideoContainer) {
+      localVideoContainer.innerHTML = ""; // Clear previous video
+      const videoElement = document.createElement("video");
+      videoElement.autoplay = true;
+      videoElement.muted = true; // Mute local video to prevent echo
+      videoElement.playsInline = true;
+      localVideoContainer.appendChild(videoElement);
+      videoTrack.play(videoElement);
+    }
+  };
+
+  const playRemoteVideo = (user) => {
+    setTimeout(() => {
+      const remoteVideoContainer = document.getElementById(`remote-video-${user.uid}`);
+      if (remoteVideoContainer) {
+        remoteVideoContainer.innerHTML = ""; // Clear previous video
+        const videoElement = document.createElement("video");
+        videoElement.autoplay = true;
+        videoElement.playsInline = true;
+        remoteVideoContainer.appendChild(videoElement);
+        user.videoTrack.play(videoElement);
+      }
+    }, 1000);
   };
 
   return (
