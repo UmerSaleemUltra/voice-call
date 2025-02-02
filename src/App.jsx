@@ -58,7 +58,7 @@ const AgoraRoom = () => {
     if (client && roomId) {
       try {
         // Join channel using the provided roomId
-        await client.join("YOUR_APP_ID", roomId, null, 0);
+        await client.join("0bbc69f7ace547c1b26c3a60d07eb405", roomId, null, 0);
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
         await client.publish([audioTrack, videoTrack]);
