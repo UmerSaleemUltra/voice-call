@@ -14,44 +14,22 @@ const AgoraRoom = () => {
     setClient(clientInstance);
 
     clientInstance.on("user-published", async (user, mediaType) => {
-      console.log(`User ${user.uid} published ${mediaType}`);
       await clientInstance.subscribe(user, mediaType);
 
       if (mediaType === "video") {
-        setRemoteUsers((prevUsers) => {
-          if (!prevUsers.find((u) => u.uid === user.uid)) {
-            return [...prevUsers, user];
-          }
-          return prevUsers;
-        });
-
+        setRemoteUsers((prevUsers) => [...prevUsers, user]);
         setTimeout(() => {
-          const remoteContainer = document.getElementById(`remote-video-${user.uid}`);
-          if (!remoteContainer) {
-            console.error(`Remote video container not found for user ${user.uid}`);
-            return;
-          }
-          user.videoTrack.play(`remote-video-${user.uid}`);
+          document.getElementById(`remote-video-${user.uid}`)?.appendChild(user.videoTrack.getMediaStreamTrack());
         }, 1000);
       }
-
-      if (mediaType === "audio") {
-        user.audioTrack.play();
-      }
+      if (mediaType === "audio") user.audioTrack.play();
     });
 
-    clientInstance.on("user-unpublished", (user, mediaType) => {
-      console.log(`User ${user.uid} unpublished ${mediaType}`);
-      if (mediaType === "video") {
-        setRemoteUsers((prevUsers) => prevUsers.filter((u) => u.uid !== user.uid));
-      }
+    clientInstance.on("user-unpublished", (user) => {
+      setRemoteUsers((prevUsers) => prevUsers.filter((u) => u.uid !== user.uid));
     });
 
-    return () => {
-      if (clientInstance) {
-        clientInstance.leave().catch(console.error);
-      }
-    };
+    return () => clientInstance.leave().catch(console.error);
   }, []);
 
   const generateRoomId = () => {
@@ -61,36 +39,17 @@ const AgoraRoom = () => {
   const joinRoom = async () => {
     if (client && roomId) {
       try {
-        // Check if camera permissions are granted
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        console.log("Camera and microphone access granted.");
-
         await client.join("0bbc69f7ace547c1b26c3a60d07eb405", roomId, null, 0);
-
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
 
-        if (!videoTrack) {
-          console.error("Video track creation failed!");
-          return;
-        }
-
-        console.log("Video track created:", videoTrack);
-
         await client.publish([audioTrack, videoTrack]);
-
         setLocalAudioTrack(audioTrack);
         setLocalVideoTrack(videoTrack);
         setJoined(true);
 
-        // Ensure the local video div exists before playing
         setTimeout(() => {
-          const videoContainer = document.getElementById("local-video");
-          if (!videoContainer) {
-            console.error("Local video container not found!");
-            return;
-          }
-          videoTrack.play("local-video");
+          document.getElementById("local-video")?.appendChild(videoTrack.getMediaStreamTrack());
         }, 500);
       } catch (error) {
         console.error("Error joining room:", error);
@@ -100,83 +59,82 @@ const AgoraRoom = () => {
 
   const leaveRoom = async () => {
     if (client) {
-      console.log("Leaving room...");
       await client.leave();
-      if (localAudioTrack) localAudioTrack.close();
-      if (localVideoTrack) localVideoTrack.close();
+      localAudioTrack?.close();
+      localVideoTrack?.close();
       setJoined(false);
       setRemoteUsers([]);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      <div className="container mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-6">
-          Agora Audio & Video Room
-        </h1>
+    <div className="min-h-screen bg-white text-gray-900 p-4 flex flex-col items-center">
+      <h1 className="text-3xl font-bold text-center mb-6">Agora Video Chat</h1>
 
-        {!joined ? (
-          <div className="flex flex-col items-center space-y-4">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                placeholder="Enter Room ID"
-                className="px-4 py-2 rounded-lg text-black"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-              />
-              <button
-                onClick={generateRoomId}
-                className="bg-blue-500 hover:bg-blue-600 transition px-4 py-2 rounded-lg"
-              >
-                Create Room
-              </button>
-            </div>
+      {!joined ? (
+        <div className="flex flex-col items-center space-y-4">
+          <div className="flex flex-col md:flex-row items-center space-y-3 md:space-y-0 md:space-x-2">
+            <input
+              type="text"
+              placeholder="Enter Room ID"
+              className="px-4 py-2 rounded-lg border border-gray-300 w-full md:w-60"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+            />
             <button
-              onClick={joinRoom}
-              className="bg-green-500 hover:bg-green-600 transition px-6 py-2 rounded-lg"
+              onClick={generateRoomId}
+              className="bg-blue-500 hover:bg-blue-600 text-white transition px-4 py-2 rounded-lg w-full md:w-auto"
             >
-              Join Room
+              Create Room
             </button>
           </div>
-        ) : (
-          <div className="mt-6">
-            <button
-              onClick={leaveRoom}
-              className="bg-red-500 hover:bg-red-600 transition px-6 py-2 rounded-lg"
-            >
-              Leave Room
-            </button>
+          <button
+            onClick={joinRoom}
+            className="bg-green-500 hover:bg-green-600 text-white transition px-6 py-2 rounded-lg w-full md:w-auto"
+          >
+            Join Room
+          </button>
+        </div>
+      ) : (
+        <div className="w-full max-w-5xl">
+          <button
+            onClick={leaveRoom}
+            className="bg-red-500 hover:bg-red-600 text-white transition px-6 py-2 rounded-lg w-full md:w-auto mb-6"
+          >
+            Leave Room
+          </button>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Local Video Container */}
-              <div className="relative bg-black rounded-lg overflow-hidden">
-                <div id="local-video" className="w-full h-64 bg-gray-800"></div>
-                <p className="absolute bottom-0 left-0 bg-gray-800 text-xs px-2 py-1">
-                  You
-                </p>
-              </div>
+          {/* Video Containers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Local Video */}
+            <div className="relative bg-gray-100 border border-gray-300 rounded-lg overflow-hidden shadow-md">
+              <div id="local-video" className="w-full h-64 bg-gray-200"></div>
+              <p className="absolute bottom-0 left-0 bg-gray-300 text-xs px-2 py-1">
+                You
+              </p>
+            </div>
 
-              {/* Remote Users Video Containers */}
-              {remoteUsers.map((user) => (
+            {/* Remote Users */}
+            {remoteUsers.length > 0 ? (
+              remoteUsers.map((user) => (
                 <div
                   key={user.uid}
-                  className="relative bg-gray-800 rounded-lg overflow-hidden"
+                  className="relative bg-gray-100 border border-gray-300 rounded-lg overflow-hidden shadow-md"
                 >
-                  <div
-                    id={`remote-video-${user.uid}`}
-                    className="w-full h-64 bg-gray-800"
-                  ></div>
-                  <p className="absolute bottom-0 left-0 bg-gray-800 text-xs px-2 py-1">
+                  <div id={`remote-video-${user.uid}`} className="w-full h-64 bg-gray-200"></div>
+                  <p className="absolute bottom-0 left-0 bg-gray-300 text-xs px-2 py-1">
                     User: {user.uid}
                   </p>
                 </div>
-              ))}
-            </div>
+              ))
+            ) : (
+              <div className="text-center text-gray-400 col-span-1 md:col-span-2">
+                No remote users yet
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
