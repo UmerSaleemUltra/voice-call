@@ -10,37 +10,43 @@ const AgoraRoom = () => {
   const [remoteUsers, setRemoteUsers] = useState([]);
 
   useEffect(() => {
-    // Create an Agora client instance
     const clientInstance = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     setClient(clientInstance);
 
-    // Listen for remote user published events
     clientInstance.on("user-published", async (user, mediaType) => {
+      console.log(`User ${user.uid} published ${mediaType}`);
       await clientInstance.subscribe(user, mediaType);
+
       if (mediaType === "video") {
-        // Add the user to remote users list (if not already added)
         setRemoteUsers((prevUsers) => {
           if (!prevUsers.find((u) => u.uid === user.uid)) {
             return [...prevUsers, user];
           }
           return prevUsers;
         });
-        user.videoTrack.play(`remote-video-${user.uid}`);
+
+        setTimeout(() => {
+          const remoteContainer = document.getElementById(`remote-video-${user.uid}`);
+          if (!remoteContainer) {
+            console.error(`Remote video container not found for user ${user.uid}`);
+            return;
+          }
+          user.videoTrack.play(`remote-video-${user.uid}`);
+        }, 1000);
       }
+
       if (mediaType === "audio") {
         user.audioTrack.play();
       }
     });
 
     clientInstance.on("user-unpublished", (user, mediaType) => {
+      console.log(`User ${user.uid} unpublished ${mediaType}`);
       if (mediaType === "video") {
-        setRemoteUsers((prevUsers) =>
-          prevUsers.filter((u) => u.uid !== user.uid)
-        );
+        setRemoteUsers((prevUsers) => prevUsers.filter((u) => u.uid !== user.uid));
       }
     });
 
-    // Cleanup on component unmount
     return () => {
       if (clientInstance) {
         clientInstance.leave().catch(console.error);
@@ -48,38 +54,56 @@ const AgoraRoom = () => {
     };
   }, []);
 
-  // Generate a random room ID for a new room
   const generateRoomId = () => {
-    const randomRoom = Math.random().toString(36).substring(2, 10);
-    setRoomId(randomRoom);
+    setRoomId(Math.random().toString(36).substring(2, 10));
   };
 
   const joinRoom = async () => {
     if (client && roomId) {
       try {
-        // Join channel using the provided roomId
+        // Check if camera permissions are granted
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        console.log("Camera and microphone access granted.");
+
         await client.join("0bbc69f7ace547c1b26c3a60d07eb405", roomId, null, 0);
+
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
+
+        if (!videoTrack) {
+          console.error("Video track creation failed!");
+          return;
+        }
+
+        console.log("Video track created:", videoTrack);
+
         await client.publish([audioTrack, videoTrack]);
 
         setLocalAudioTrack(audioTrack);
         setLocalVideoTrack(videoTrack);
         setJoined(true);
 
-        // Play the local video in the container
-        videoTrack.play("local-video");
+        // Ensure the local video div exists before playing
+        setTimeout(() => {
+          const videoContainer = document.getElementById("local-video");
+          if (!videoContainer) {
+            console.error("Local video container not found!");
+            return;
+          }
+          videoTrack.play("local-video");
+        }, 500);
       } catch (error) {
-        console.error("Error joining room: ", error);
+        console.error("Error joining room:", error);
       }
     }
   };
 
   const leaveRoom = async () => {
     if (client) {
+      console.log("Leaving room...");
       await client.leave();
-      localAudioTrack && localAudioTrack.close();
-      localVideoTrack && localVideoTrack.close();
+      if (localAudioTrack) localAudioTrack.close();
+      if (localVideoTrack) localVideoTrack.close();
       setJoined(false);
       setRemoteUsers([]);
     }
@@ -92,7 +116,7 @@ const AgoraRoom = () => {
           Agora Audio & Video Room
         </h1>
 
-        {!joined && (
+        {!joined ? (
           <div className="flex flex-col items-center space-y-4">
             <div className="flex space-x-2">
               <input
@@ -116,9 +140,7 @@ const AgoraRoom = () => {
               Join Room
             </button>
           </div>
-        )}
-
-        {joined && (
+        ) : (
           <div className="mt-6">
             <button
               onClick={leaveRoom}
@@ -126,14 +148,16 @@ const AgoraRoom = () => {
             >
               Leave Room
             </button>
+
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Local Video Container */}
               <div className="relative bg-black rounded-lg overflow-hidden">
-                <div id="local-video" className="w-full h-64"></div>
+                <div id="local-video" className="w-full h-64 bg-gray-800"></div>
                 <p className="absolute bottom-0 left-0 bg-gray-800 text-xs px-2 py-1">
                   You
                 </p>
               </div>
+
               {/* Remote Users Video Containers */}
               {remoteUsers.map((user) => (
                 <div
@@ -142,7 +166,7 @@ const AgoraRoom = () => {
                 >
                   <div
                     id={`remote-video-${user.uid}`}
-                    className="w-full h-64"
+                    className="w-full h-64 bg-gray-800"
                   ></div>
                   <p className="absolute bottom-0 left-0 bg-gray-800 text-xs px-2 py-1">
                     User: {user.uid}
