@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import AgoraRTC from 'agora-rtc-sdk-ng';
+import React, { useState, useEffect } from "react";
+import AgoraRTC from "agora-rtc-sdk-ng";
 
 const VoiceCall = () => {
   const [client, setClient] = useState(null);
@@ -7,13 +7,21 @@ const VoiceCall = () => {
   const [localAudioTrack, setLocalAudioTrack] = useState(null);
 
   useEffect(() => {
-    // Create an Agora client
-    const clientInstance = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+    AgoraRTC.setLogLevel(0); // Enable debugging logs
+    const clientInstance = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     setClient(clientInstance);
+
+    clientInstance.on("user-published", async (user, mediaType) => {
+      if (mediaType === "audio") {
+        await clientInstance.subscribe(user, mediaType);
+        const remoteAudioTrack = user.audioTrack;
+        remoteAudioTrack.play(); // Play the remote user's audio
+      }
+    });
 
     return () => {
       if (client) {
-        client.leave().catch(console.error); // No need to call client.close()
+        client.leave().catch(console.error);
       }
     };
   }, []);
@@ -21,13 +29,20 @@ const VoiceCall = () => {
   const joinChannel = async () => {
     if (client) {
       try {
-        // Request microphone permission
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-  
-        await client.join("0bbc69f7ace547c1b26c3a60d07eb405", "test-channel", null, 0);
+        await navigator.mediaDevices.getUserMedia({ audio: true }); // Request permission
+
+        await client.join(
+          "0bbc69f7ace547c1b26c3a60d07eb405",
+          "test-channel",
+          null,
+          0
+        );
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-        await client.publish([audioTrack]);
-  
+        audioTrack.setEnabled(true);
+
+        await client.publish(audioTrack);
+        console.log("Audio track published:", audioTrack);
+
         setLocalAudioTrack(audioTrack);
         setJoined(true);
       } catch (error) {
@@ -35,7 +50,6 @@ const VoiceCall = () => {
       }
     }
   };
-  
 
   const leaveChannel = async () => {
     if (client && localAudioTrack) {
