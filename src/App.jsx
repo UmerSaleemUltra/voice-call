@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
+const AGORA_APP_ID = "0bbc69f7ace547c1b26c3a60d07eb405"; // Replace with your Agora App ID
+
 const AgoraRoom = () => {
   const [client, setClient] = useState(null);
   const [joined, setJoined] = useState(false);
@@ -18,11 +20,9 @@ const AgoraRoom = () => {
 
       if (mediaType === "video") {
         setRemoteUsers((prevUsers) => [...prevUsers, user]);
-        playRemoteVideo(user);
+        user.videoTrack.play(`remote-video-${user.uid}`);
       }
-      if (mediaType === "audio") {
-        user.audioTrack.play();
-      }
+      if (mediaType === "audio") user.audioTrack.play();
     });
 
     clientInstance.on("user-unpublished", (user) => {
@@ -39,7 +39,7 @@ const AgoraRoom = () => {
   const joinRoom = async () => {
     if (client && roomId) {
       try {
-        await client.join("0bbc69f7ace547c1b26c3a60d07eb405", roomId, null, 0);
+        await client.join(AGORA_APP_ID, roomId, null, null);
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
 
@@ -48,7 +48,7 @@ const AgoraRoom = () => {
         setLocalVideoTrack(videoTrack);
         setJoined(true);
 
-        playLocalVideo(videoTrack);
+        videoTrack.play("local-video"); // Play local video correctly
       } catch (error) {
         console.error("Error joining room:", error);
       }
@@ -63,33 +63,6 @@ const AgoraRoom = () => {
       setJoined(false);
       setRemoteUsers([]);
     }
-  };
-
-  const playLocalVideo = (videoTrack) => {
-    const localVideoContainer = document.getElementById("local-video");
-    if (localVideoContainer) {
-      localVideoContainer.innerHTML = ""; // Clear previous video
-      const videoElement = document.createElement("video");
-      videoElement.autoplay = true;
-      videoElement.muted = true; // Mute local video to prevent echo
-      videoElement.playsInline = true;
-      localVideoContainer.appendChild(videoElement);
-      videoTrack.play(videoElement);
-    }
-  };
-
-  const playRemoteVideo = (user) => {
-    setTimeout(() => {
-      const remoteVideoContainer = document.getElementById(`remote-video-${user.uid}`);
-      if (remoteVideoContainer) {
-        remoteVideoContainer.innerHTML = ""; // Clear previous video
-        const videoElement = document.createElement("video");
-        videoElement.autoplay = true;
-        videoElement.playsInline = true;
-        remoteVideoContainer.appendChild(videoElement);
-        user.videoTrack.play(videoElement);
-      }
-    }, 1000);
   };
 
   return (
